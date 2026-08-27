@@ -17,10 +17,14 @@ from sglang.kernels.ops.speculative.dspark.dspark_accept import (
     accept_sampling,
 )
 from sglang.srt.configs.hybrid_arch import mambaish_config
+from sglang.srt.constrained.base_grammar_backend import GrammarMask
 from sglang.srt.distributed import get_tp_group
 from sglang.srt.distributed.parallel_state_wrapper import ParallelState
 from sglang.srt.environ import envs
-from sglang.srt.layers.logits_processor import should_apply_lm_head_quant_method
+from sglang.srt.layers.logits_processor import (
+    LogitsProcessorOutput,
+    should_apply_lm_head_quant_method,
+)
 from sglang.srt.layers.logprob_processor import compute_spec_logprobs
 from sglang.srt.lora.layers import unwrap_lora_layer
 from sglang.srt.managers.schedule_batch import ScheduleBatch
@@ -38,6 +42,11 @@ from sglang.srt.runtime_context import (
     get_schedule,
     get_spec,
     mamba_track_grid,
+)
+from sglang.srt.sampling.sampling_observer import (
+    LinearSpeculationObservation,
+    SamplingObserver,
+    get_active_linear_speculation_observer,
 )
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.speculative.base_spec_worker import BaseSpecWorker
@@ -176,6 +185,43 @@ def _commit_accept(candidates, accept_len, bonus_tokens):
     out_tokens[:, -1].fill_(0)
     out_tokens.scatter_(1, accept_len.to(torch.int64)[:, None], bonus_tokens[:, None])
     return out_tokens, accept_len.to(torch.int32) + 1
+
+
+def _prepare_dflash_acceptance_with_observer(
+    *,
+    logits_output: LogitsProcessorOutput,
+    sampling_observer: Optional[SamplingObserver],
+    batch: ScheduleBatch,
+    grammar_mask: Optional[GrammarMask],
+    batch_size: int,
+    block_size: int,
+) -> Optional[LinearSpeculationObservation]:
+    """Reset reused output, capture pre-mask logits, then apply the grammar."""
+    logits_output.auxiliary_device_output = None
+    linear_observer = get_active_linear_speculation_observer(sampling_observer, batch)
+    observation = None
+    if linear_observer is not None:
+        observation = linear_observer.before_linear_speculation(
+            logits_output.next_token_logits.view(batch_size, block_size, -1),
+            batch,
+            grammar_mask.vocab_mask if grammar_mask is not None else None,
+        )
+    if grammar_mask is not None:
+        grammar_mask.apply(logits_output.next_token_logits)
+    return observation
+
+
+def _finalize_dflash_linear_observation(
+    *,
+    logits_output: LogitsProcessorOutput,
+    observation: LinearSpeculationObservation,
+    accept_tokens: torch.Tensor,
+    num_accept_tokens: torch.Tensor,
+) -> None:
+    logits_output.auxiliary_device_output = observation.finalize(
+        accept_tokens=accept_tokens,
+        num_accept_tokens=num_accept_tokens,
+    )
 
 
 def _resolve_dflash_embedding_module(draft_model, target_model):
@@ -2021,9 +2067,14 @@ class DFlashWorkerV2(BaseSpecWorker):
                 draft_token_num=int(self.block_size),
             )
 
-        # Constrain every chain position before accept picks from it.
-        if grammar_mask is not None:
-            grammar_mask.apply(logits_output.next_token_logits)
+        linear_observation = _prepare_dflash_acceptance_with_observer(
+            logits_output=logits_output,
+            sampling_observer=self.target_worker.model_runner.sampling_observer,
+            batch=batch,
+            grammar_mask=grammar_mask,
+            batch_size=bs,
+            block_size=int(self.block_size),
+        )
 
         candidates = draft_tokens
         new_seq_lens = None
@@ -2120,6 +2171,14 @@ class DFlashWorkerV2(BaseSpecWorker):
             # The Triton path may have written new_seq_lens from the real
             # accept_len; recompute it from the forced commit_lens.
             new_seq_lens = None
+
+        if linear_observation is not None:
+            _finalize_dflash_linear_observation(
+                logits_output=logits_output,
+                observation=linear_observation,
+                accept_tokens=out_tokens,
+                num_accept_tokens=commit_lens,
+            )
 
         if batch.return_logprob:
             compute_spec_logprobs(
