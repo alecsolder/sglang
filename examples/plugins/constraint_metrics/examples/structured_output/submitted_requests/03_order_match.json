@@ -73,14 +73,11 @@
     26,
     200008,
     200022,
-    140680,
-    328,
-    76976,
-    200023
+    140680
   ],
   "sampling_params": {
-    "json_schema": "{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"const\":\"Paris\"},\"country\":{\"type\":\"string\",\"const\":\"France\"},\"temperature_c\":{\"type\":\"integer\",\"const\":18}},\"required\":[\"city\",\"country\",\"temperature_c\"],\"additionalProperties\":false}",
-    "max_new_tokens": 64,
+    "ebnf": "%llguidance {}\n\n// Muse-Glimmer-30B assistant turn, identical to ../muse_glimmer/chat_turn.lark\n// except that the answer turn's message body is a JSON schema instead of free\n// text. The prompt ends with `<|start|>assistant`, so generation begins at the\n// recipient marker and every envelope and reasoning token below is one the\n// model chose for itself.\n\nstart: reasoning_turn* answer_turn\n\nreasoning_turn: to_self_header content eom start_tok assistant_tok\nanswer_turn: to_user_header json_answer eot\n\nto_self_header: to_tok self_tok message_tok\nto_user_header: to_tok user_tok message_tok\n\ncontent: body_tok*\n\njson_answer: %json {\n  \"type\": \"object\",\n  \"properties\": {\n    \"city\": {\"type\": \"string\", \"const\": \"Paris\"},\n    \"country\": {\"type\": \"string\", \"const\": \"France\"},\n    \"temperature_c\": {\"type\": \"integer\", \"const\": 18}\n  },\n  \"required\": [\"city\", \"country\", \"temperature_c\"],\n  \"additionalProperties\": false\n}\n\nto_tok:        <[328]>       // \" to\"\nself_tok:      <[19669]>     // \"=self\"\nuser_tok:      <[76976]>     // \"=user\"\nmessage_tok:   <[200023]>    // <|message|>\nstart_tok:     <[200022]>    // <|start|>\nassistant_tok: <[140680]>    // \"assistant\"\neom:           <[200007]>    // <|eom|>\neot:           <[200008]>    // <|eot|>\n\nbody_tok: <[^200022,200023,200007,200008,200001]>\n",
+    "max_new_tokens": 256,
     "temperature": 0,
     "skip_special_tokens": false,
     "constraint_metrics": {

@@ -1,0 +1,39 @@
+%llguidance {}
+
+// Muse-Glimmer-30B assistant turn, identical to ../muse_glimmer/chat_turn.lark
+// except that the answer turn's message body is a JSON schema instead of free
+// text. The prompt ends with `<|start|>assistant`, so generation begins at the
+// recipient marker and every envelope and reasoning token below is one the
+// model chose for itself.
+
+start: reasoning_turn* answer_turn
+
+reasoning_turn: to_self_header content eom start_tok assistant_tok
+answer_turn: to_user_header json_answer eot
+
+to_self_header: to_tok self_tok message_tok
+to_user_header: to_tok user_tok message_tok
+
+content: body_tok*
+
+json_answer: %json {
+  "type": "object",
+  "properties": {
+    "city": {"type": "string", "const": "Paris"},
+    "country": {"type": "string", "const": "France"},
+    "temperature_c": {"type": "integer", "const": 18}
+  },
+  "required": ["city", "country", "temperature_c"],
+  "additionalProperties": false
+}
+
+to_tok:        <[328]>       // " to"
+self_tok:      <[19669]>     // "=self"
+user_tok:      <[76976]>     // "=user"
+message_tok:   <[200023]>    // <|message|>
+start_tok:     <[200022]>    // <|start|>
+assistant_tok: <[140680]>    // "assistant"
+eom:           <[200007]>    // <|eom|>
+eot:           <[200008]>    // <|eot|>
+
+body_tok: <[^200022,200023,200007,200008,200001]>

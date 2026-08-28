@@ -15,8 +15,30 @@
         "min": 1.0
       },
       "emitted_label": "city",
-      "unconstrained_top1_label": "temperature",
-      "top_masked_label": "temperature"
+      "unconstrained_top1_label": "temperature"
+    }
+  ],
+  "every_token_labeled": [
+    {
+      "emitted_label": " to",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
+    },
+    {
+      "emitted_label": "=user",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
+    },
+    {
+      "emitted_label": "<|message|>",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
     }
   ]
 }

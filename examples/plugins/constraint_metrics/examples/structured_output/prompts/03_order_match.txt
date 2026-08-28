@@ -2,4 +2,4 @@
 
 Reasoning strength: low.
 
-# Valid recipients: "self", "user".<|eot|><|start|>user<|message|>Return only a compact JSON object matching this schema. Use the keys in exactly the order listed: city is the string "Paris"; country is the string "France"; temperature_c is the integer 18.<|eot|><|start|>assistant to=user<|message|>
+# Valid recipients: "self", "user".<|eot|><|start|>user<|message|>Return only a compact JSON object matching this schema. Use the keys in exactly the order listed: city is the string "Paris"; country is the string "France"; temperature_c is the integer 18.<|eot|><|start|>assistant

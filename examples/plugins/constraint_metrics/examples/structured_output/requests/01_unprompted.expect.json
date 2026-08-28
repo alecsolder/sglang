@@ -5,18 +5,38 @@
       "min": 1
     },
     "max_constraint_pressure_nats": {
-      "min": 1.0
+      "min": 5.0
     }
   },
   "any_token": [
     {
-      "output_index": 0,
       "argmax_masked": true,
       "constraint_pressure_nats": {
-        "min": 1.0
-      },
-      "emitted_label": "{",
-      "unconstrained_top1_label": "The"
+        "min": 5.0
+      }
+    }
+  ],
+  "every_token_labeled": [
+    {
+      "emitted_label": " to",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
+    },
+    {
+      "emitted_label": "=user",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
+    },
+    {
+      "emitted_label": "<|message|>",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
     }
   ]
 }

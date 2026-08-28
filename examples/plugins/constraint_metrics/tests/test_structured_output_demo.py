@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,8 @@ from sglang_constraint_metrics.viewer.client import (
 from sglang_constraint_metrics.viewer.data import SchemaError, parse_response_obj
 
 DEMO_DIR = Path(run_demo.__file__).parent
+DEMO_GRAMMAR = DEMO_DIR / "chat_turn_json.lark"
+CALIBRATION_GRAMMAR = DEMO_DIR.parent / "muse_glimmer" / "chat_turn.lark"
 
 
 def _args(tmp_path: Path, requests: Path) -> argparse.Namespace:
@@ -61,6 +64,26 @@ def _assert_expectation(metrics, expectation):
         assert _within_bounds(getattr(metrics.summary, name), bounds)
     for expected in expectation.get("any_token", []):
         assert any(_matches_token(metrics, token, expected) for token in metrics.tokens)
+    for expected in expectation.get("every_token_labeled", []):
+        label = expected["emitted_label"]
+        labeled = [
+            token
+            for token in metrics.tokens
+            if metrics.token_label(token.token_id) == label
+        ]
+        assert labeled, f"no emitted token is labeled {label!r}"
+        assert all(_matches_token(metrics, token, expected) for token in labeled)
+
+
+def _grammar_rules(text):
+    """Return the single-line rule bodies of a lark grammar, comments stripped."""
+
+    rules = {}
+    for line in text.splitlines():
+        match = re.fullmatch(r"([a-z][\w-]*):\s*(.*?)\s*(?://.*)?", line)
+        if match:
+            rules[match.group(1)] = match.group(2)
+    return rules
 
 
 def test_capture_discovers_request_files_and_preserves_relative_paths(
@@ -179,6 +202,43 @@ def test_capture_rejects_overlapping_input_and_output_roots(tmp_path):
         run_demo._capture(args, "http://server")
 
 
+def test_demo_grammar_only_replaces_the_calibration_answer_body():
+    calibration = _grammar_rules(CALIBRATION_GRAMMAR.read_text())
+    demo = _grammar_rules(DEMO_GRAMMAR.read_text())
+    shared = (calibration.keys() & demo.keys()) - {"answer_turn"}
+
+    assert "start" in shared and "to_user_header" in shared
+    assert {name: demo[name] for name in shared} == {
+        name: calibration[name] for name in shared
+    }
+    assert calibration["answer_turn"] == "to_user_header content_nonempty eot"
+    assert demo["answer_turn"] == "to_user_header json_answer eot"
+
+
+@pytest.mark.parametrize(
+    "request_path",
+    run_demo._request_paths(DEMO_DIR / "requests"),
+    ids=lambda path: str(path.relative_to(DEMO_DIR / "requests")),
+)
+def test_committed_request_posts_the_full_turn_grammar(request_path):
+    sampling_params = json.loads(request_path.read_text())["sampling_params"]
+
+    assert sampling_params["ebnf"] == DEMO_GRAMMAR.read_text()
+    assert "json_schema" not in sampling_params
+
+
+@pytest.mark.parametrize(
+    "request_path",
+    run_demo._request_paths(DEMO_DIR / "requests"),
+    ids=lambda path: str(path.relative_to(DEMO_DIR / "requests")),
+)
+def test_committed_request_generates_from_the_recipient_marker(request_path):
+    input_ids = json.loads(request_path.read_text())["input_ids"]
+
+    # <|start|>assistant, with no prefilled recipient: the grammar chooses it.
+    assert input_ids[-2:] == [200022, 140680]
+
+
 @pytest.mark.parametrize(
     "request_path",
     run_demo._request_paths(DEMO_DIR / "requests"),
@@ -190,6 +250,11 @@ def test_committed_demo_fixture_matches_expectation(request_path):
     response_path = DEMO_DIR / "responses" / relative
     label_path = DEMO_DIR / "token_labels" / relative
     expectation_path = run_demo._expectation_path(request_path)
+    if not response_path.is_file():
+        pytest.skip(
+            f"{relative} has not been captured; "
+            "see examples/structured_output/README.md"
+        )
 
     assert submitted_path.read_bytes() == run_demo._json_bytes(
         build_request_body(json.loads(request_path.read_text()), 8)
