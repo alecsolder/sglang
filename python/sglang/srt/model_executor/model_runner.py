@@ -187,7 +187,10 @@ from sglang.srt.runtime_context import (
     set_global_dwdp_manager,
 )
 from sglang.srt.sampling.sampling_batch_info import SamplingBatchInfo
-from sglang.srt.sampling.sampling_observer import SamplingObserver
+from sglang.srt.sampling.sampling_observer import (
+    SamplingObserver,
+    is_linear_speculation_observer,
+)
 from sglang.srt.server_args import (  # noqa: F401  (re-export)
     CHUNKED_PREFIX_CACHE_SUPPORTED_ATTENTION_BACKENDS,
     ServerArgs,
@@ -302,11 +305,26 @@ class ModelRunner:
                 "sampling observers are not supported by the configured "
                 "sampling path"
             )
+        if (
+            observer is not None
+            and self.requires_linear_speculation_observer()
+            and not is_linear_speculation_observer(observer)
+        ):
+            raise ValueError(
+                "the configured sampling path requires a linear-speculation "
+                "sampling observer"
+            )
         self._sampling_observer = observer
 
     def supports_sampling_observer(self) -> bool:
         """Whether this runner's sampling path publishes observer output."""
-        return self.server_args.dllm_algorithm is None and self.spec_algorithm.is_none()
+        return self.server_args.dllm_algorithm is None and (
+            self.spec_algorithm.is_none() or self.spec_algorithm.is_dflash()
+        )
+
+    def requires_linear_speculation_observer(self) -> bool:
+        """Whether this runner requires the linear-speculation extension."""
+        return self.spec_algorithm.is_dflash()
 
     def __init__(
         self,
