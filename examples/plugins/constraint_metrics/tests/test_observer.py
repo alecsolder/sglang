@@ -8,15 +8,21 @@ import pytest
 import torch
 
 import sglang_constraint_metrics.records as records
-from sglang.srt.constrained.llguidance_backend import GuidanceGrammar
+from sglang.srt.constrained.base_grammar_backend import (
+    BaseGrammarObject,
+    GrammarMask,
+)
+from sglang.srt.constrained.xgrammar_backend import XGrammarGrammar
 from sglang.srt.managers.io_struct import unwrap_from_pickle, wrap_as_pickle
 from sglang.srt.sampling.sampling_observer import CommittedTokens
 from sglang_constraint_metrics import layout
+from sglang_constraint_metrics.capture import build_capture_plan
 from sglang_constraint_metrics.config import (
     CUSTOM_PARAMS_KEY,
     ConstraintMetricsConfig,
     config_from_sampling_custom_params,
 )
+from sglang_constraint_metrics.mask import MASK_PACKED_ALLOWED
 from sglang_constraint_metrics.observer import (
     CONSTRAINT_METRICS_STREAM_ENABLED_KEY,
     CONSTRAINT_METRICS_STREAM_KEY,
@@ -142,15 +148,17 @@ def _assert_token_columns(tokens):
             assert len(values) == count
 
 
-class _Grammar(GuidanceGrammar):
+class _Grammar(BaseGrammarObject):
     def __init__(
         self,
         mode: str | None = None,
         *,
         top_k: int = 8,
         stream_all_token_metrics: bool = False,
+        terminated: bool = False,
     ):
-        self._finished = False
+        super().__init__()
+        self._terminated = terminated
         self.constraint_metrics_config = (
             ConstraintMetricsConfig(
                 mode,
@@ -162,7 +170,24 @@ class _Grammar(GuidanceGrammar):
         )
 
     def is_terminated(self):
-        return False
+        return self._terminated
+
+
+def _xgrammar(
+    mode: str,
+    *,
+    terminated: bool = False,
+) -> XGrammarGrammar:
+    matcher = Mock()
+    matcher.is_terminated.return_value = terminated
+    grammar = XGrammarGrammar(
+        matcher=matcher,
+        vocab_size=32,
+        ctx=None,
+        override_stop_tokens=None,
+    )
+    grammar.constraint_metrics_config = ConstraintMetricsConfig(mode, 8)
+    return grammar
 
 
 def _dense_blocked_mask(rows: int, vocab_size: int) -> SimpleNamespace:
@@ -416,6 +441,17 @@ def test_linear_speculation_activation_is_false_without_configured_grammar():
     assert not _observer().is_linear_speculation_active(batch)
 
 
+def test_terminated_xgrammar_is_reported_inactive():
+    grammar = _xgrammar("summary", terminated=True)
+
+    plan = build_capture_plan([grammar])
+
+    assert not grammar.finished
+    assert grammar.is_terminated()
+    assert plan is not None
+    assert plan.grammar_active == [False]
+
+
 def test_mixed_forensic_k_values_use_isolated_payload_widths(monkeypatch):
     import sglang_constraint_metrics.observer as observer_module
 
@@ -507,6 +543,24 @@ def test_observer_captures_effective_logits_and_real_grammar_mask():
         [False, True, False, False],
     ]
     assert torch.equal(logits, original)
+
+
+def test_observer_captures_xgrammar_packed_mask():
+    logits = torch.tensor([[1.0, 2.0, 3.0, 4.0]], dtype=torch.float32)
+    grammar = _xgrammar("summary")
+    packed_mask = torch.tensor([[-1]], dtype=torch.int32)
+    info = SimpleNamespace(
+        custom_params=[_custom("summary")],
+        grammars=[grammar],
+        logit_bias=None,
+        temperatures=torch.ones(1, 1),
+        grammar_mask=GrammarMask(grammar=grammar, vocab_mask=packed_mask),
+    )
+
+    state = _observer().before_grammar(logits, info)
+
+    assert state.inputs.grammar_mask is packed_mask
+    assert state.grammar_mask_kind == MASK_PACKED_ALLOWED
 
 
 def test_forensic_payload_stays_on_device_until_terminal_archive():

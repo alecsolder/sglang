@@ -9,14 +9,14 @@ from typing import Any
 
 import torch
 
-from sglang.srt.constrained.llguidance_backend import GuidanceGrammar
+from sglang.srt.constrained.base_grammar_backend import BaseGrammarObject
 from sglang_constraint_metrics.config import MODE_FORENSIC
 from sglang_constraint_metrics.records import async_index_to_device
 
 
 def grammar_has_constraint_metrics(grammar: Any) -> bool:
     return (
-        isinstance(grammar, GuidanceGrammar)
+        isinstance(grammar, BaseGrammarObject)
         and getattr(grammar, "constraint_metrics_config", None) is not None
     )
 
@@ -121,6 +121,7 @@ def build_capture_plan(
     stream_all_token_metrics = list(static_plan.stream_all_token_metrics)
     grammar_active = [
         not grammar_tuple[batch_index].finished
+        and not grammar_tuple[batch_index].is_terminated()
         for batch_index in diagnostic_batch_indices
     ]
     return ConstraintMetricsCapturePlan(
