@@ -1,0 +1,26 @@
+%llguidance {}
+
+// Muse-Glimmer-30B assistant turn. The prompt already ends with
+// `<|start|>assistant`, so generation begins at the recipient marker.
+
+start: reasoning_turn* answer_turn
+
+reasoning_turn: to_self_header content eom start_tok assistant_tok
+answer_turn: to_user_header content_nonempty eot
+
+to_self_header: to_tok self_tok message_tok
+to_user_header: to_tok user_tok message_tok
+
+content: body_tok*
+content_nonempty: body_tok+
+
+to_tok:        <[328]>       // " to"
+self_tok:      <[19669]>     // "=self"
+user_tok:      <[76976]>     // "=user"
+message_tok:   <[200023]>    // <|message|>
+start_tok:     <[200022]>    // <|start|>
+assistant_tok: <[140680]>    // "assistant"
+eom:           <[200007]>    // <|eom|>
+eot:           <[200008]>    // <|eot|>
+
+body_tok: <[^200022,200023,200007,200008,200001]>

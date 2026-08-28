@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sglang-constraint-metrics"
+version = "0.1.0"
+description = "Request-scoped diagnostics for SGLang grammar-constrained sampling"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/alecsolder/sglang-constraint-metrics"
+Issues = "https://github.com/alecsolder/sglang-constraint-metrics/issues"
+
+[project.optional-dependencies]
+viewer = ["textual>=0.60"]
+
+[project.scripts]
+sglang-constraint-metrics-view = "sglang_constraint_metrics.viewer.cli:main"
+
+[project.entry-points."sglang.srt.plugins"]
+constraint_metrics = "sglang_constraint_metrics.plugin:register"
+
+[dependency-groups]
+dev = [
+  "black>=26.1",
+  "build>=1.3",
+  "isort>=7",
+  "pytest>=8",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.9",
+  "textual>=0.60",
+  "twine>=6.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["B", "E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sglang", "sglang_constraint_metrics"]
+
+[tool.isort]
+profile = "black"
+known_first_party = ["sglang", "sglang_constraint_metrics"]
