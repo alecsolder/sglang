@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "summary": {
+    "argmax_masked_count": {
+      "min": 1
+    },
+    "max_constraint_pressure_nats": {
+      "min": 1.0
+    }
+  },
+  "any_token": [
+    {
+      "argmax_masked": true,
+      "constraint_pressure_nats": {
+        "min": 1.0
+      },
+      "emitted_label": "city",
+      "unconstrained_top1_label": "temperature"
+    }
+  ],
+  "every_token_labeled": [
+    {
+      "emitted_label": " to",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
+    },
+    {
+      "emitted_label": "=user",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
+    },
+    {
+      "emitted_label": "<|message|>",
+      "argmax_masked": false,
+      "constraint_pressure_nats": {
+        "max": 0.001
+      }
+    }
+  ]
+}

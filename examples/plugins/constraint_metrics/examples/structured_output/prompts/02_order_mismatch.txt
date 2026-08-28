@@ -1,0 +1,5 @@
+<|begin_of_text|><|start|>system<|message|>You are a helpful assistant.
+
+Reasoning strength: low.
+
+# Valid recipients: "self", "user".<|eot|><|start|>user<|message|>Return only a compact JSON object matching this schema. Use the keys in exactly the order listed: temperature_c is the integer 18; country is the string "France"; city is the string "Paris".<|eot|><|start|>assistant
