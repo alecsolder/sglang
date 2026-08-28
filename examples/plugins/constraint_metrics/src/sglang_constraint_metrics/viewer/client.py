@@ -6,7 +6,7 @@ import json
 import urllib.error
 import urllib.request
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +95,39 @@ def load_json(path: str | Path) -> Any:
         raise SchemaError(f"JSON file not found: {source}") from error
     except json.JSONDecodeError as error:
         raise SchemaError(f"invalid JSON in {source}: {error}") from error
+
+
+def load_token_labels(path: str | Path) -> dict[int, str]:
+    """Load a JSON object mapping token IDs to their decoded text."""
+
+    value = load_json(path)
+    if not isinstance(value, dict):
+        raise SchemaError("token labels JSON must contain one object")
+    labels = {}
+    for raw_token_id, label in value.items():
+        try:
+            token_id = int(raw_token_id)
+        except (TypeError, ValueError) as error:
+            raise SchemaError(
+                f"token label key {raw_token_id!r} is not an integer"
+            ) from error
+        if token_id < 0 or str(token_id) != raw_token_id:
+            raise SchemaError(f"token label key {raw_token_id!r} is not canonical")
+        if not isinstance(label, str):
+            raise SchemaError(f"token label {raw_token_id!r} must be a string")
+        labels[token_id] = label
+    return labels
+
+
+def save_token_labels(path: str | Path, labels: Mapping[int, str]) -> None:
+    """Save decoded token text in the offline viewer's portable format."""
+
+    Path(path).write_text(
+        json.dumps(
+            {str(token_id): label for token_id, label in labels.items()}, indent=2
+        )
+        + "\n"
+    )
 
 
 def detokenize(

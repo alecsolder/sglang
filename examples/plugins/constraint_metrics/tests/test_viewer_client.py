@@ -102,6 +102,37 @@ def test_detokenize_rejects_misaligned_response(monkeypatch):
         client.detokenize("http://localhost:30000", [1, 2])
 
 
+def test_load_token_labels(tmp_path):
+    path = tmp_path / "token_labels.json"
+    path.write_text('{"10": "alpha", "11": " beta"}')
+
+    assert client.load_token_labels(path) == {10: "alpha", 11: " beta"}
+
+
+@pytest.mark.parametrize(
+    "value,match",
+    [
+        ('["alpha"]', "must contain one object"),
+        ('{"01": "alpha"}', "is not canonical"),
+        ('{"10": 10}', "must be a string"),
+    ],
+)
+def test_load_token_labels_rejects_invalid_maps(tmp_path, value, match):
+    path = tmp_path / "token_labels.json"
+    path.write_text(value)
+
+    with pytest.raises(SchemaError, match=match):
+        client.load_token_labels(path)
+
+
+def test_save_token_labels_round_trips(tmp_path):
+    path = tmp_path / "token_labels.json"
+
+    client.save_token_labels(path, {10: "alpha", 11: " beta"})
+
+    assert client.load_token_labels(path) == {10: "alpha", 11: " beta"}
+
+
 def test_submit_falls_back_to_token_ids_when_detokenize_fails(monkeypatch):
     def post(url, _body, _timeout):
         if url.endswith("/generate"):
