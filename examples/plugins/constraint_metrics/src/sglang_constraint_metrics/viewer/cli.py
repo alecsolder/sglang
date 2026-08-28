@@ -10,7 +10,6 @@ from .client import (
     detokenize,
     load_json,
     load_token_labels,
-    save_token_labels,
     submit_request,
 )
 from .data import SchemaError, parse_response_obj, terminal_safe_text
@@ -34,10 +33,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--top-k", type=int, default=8, help="live candidate width")
     parser.add_argument("--save", help="save the exact live /generate response")
-    parser.add_argument(
-        "--save-token-labels",
-        help="save decoded token labels for later offline viewing",
-    )
     parser.add_argument("--timeout", type=float, default=120.0)
     return parser
 
@@ -53,8 +48,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("choose --token-labels or --url for offline token labels")
     if args.response and args.save:
         parser.error("--save is only valid with --request")
-    if args.save_token_labels and not args.url:
-        parser.error("--save-token-labels requires --url")
     try:
         import textual  # noqa: F401
 
@@ -97,8 +90,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                         timeout=min(args.timeout, 30.0),
                     )
                 )
-        if args.save_token_labels:
-            save_token_labels(args.save_token_labels, metrics.token_labels)
     except SchemaError as error:
         parser.exit(2, f"error: {terminal_safe_text(str(error))}\n")
 

@@ -126,7 +126,7 @@ def test_load_token_labels_rejects_invalid_maps(tmp_path, value, match):
 
 
 def test_save_token_labels_round_trips(tmp_path):
-    path = tmp_path / "token_labels.json"
+    path = tmp_path / "nested" / "token_labels.json"
 
     client.save_token_labels(path, {10: "alpha", 11: " beta"})
 

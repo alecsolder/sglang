@@ -57,34 +57,6 @@ def test_cli_loads_offline_token_labels(monkeypatch):
     assert seen[0].token_label(10) == "alpha"
 
 
-def test_cli_saves_live_token_labels(monkeypatch):
-    seen = []
-    saved = []
-    metrics = cli.parse_response_obj(forensic_response(), token_labels={10: "alpha"})
-    monkeypatch.setattr(cli, "load_json", lambda _path: {"text": "hello"})
-    monkeypatch.setattr(cli, "submit_request", lambda *_args, **_kwargs: metrics)
-    monkeypatch.setattr(cli, "save_token_labels", lambda *args: saved.append(args))
-    monkeypatch.setattr(
-        ConstraintMetricsApp, "run", lambda self: seen.append(self.metrics)
-    )
-
-    assert (
-        cli.main(
-            [
-                "--request",
-                "request.json",
-                "--url",
-                "http://localhost:30000",
-                "--save-token-labels",
-                "token_labels.json",
-            ]
-        )
-        == 0
-    )
-    assert saved == [("token_labels.json", {10: "alpha"})]
-    assert seen == [metrics]
-
-
 def test_cli_reports_schema_errors_without_traceback(monkeypatch, capsys):
     monkeypatch.setattr(cli, "load_json", lambda _path: {})
 

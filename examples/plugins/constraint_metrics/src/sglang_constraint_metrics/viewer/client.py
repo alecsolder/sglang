@@ -122,7 +122,9 @@ def load_token_labels(path: str | Path) -> dict[int, str]:
 def save_token_labels(path: str | Path, labels: Mapping[int, str]) -> None:
     """Save decoded token text in the offline viewer's portable format."""
 
-    Path(path).write_text(
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
         json.dumps(
             {str(token_id): label for token_id, label in labels.items()}, indent=2
         )
