@@ -1,5 +1,5 @@
 <|begin_of_text|><|start|>system<|message|>You are a helpful assistant.
 
-Reasoning strength: none.
+Reasoning strength: low.
 
 # Valid recipients: "self", "user".<|eot|><|start|>user<|message|>What is the capital of France? For this demonstration, assume it is currently 18 degrees Celsius there.<|eot|><|start|>assistant to=user<|message|>

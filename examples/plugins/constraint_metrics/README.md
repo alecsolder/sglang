@@ -114,7 +114,9 @@ The viewer starts on the peak-pressure token. Use arrows or `j`/`k` to move,
 summary, `Enter` or `i` for the full-token view, and `?` for metric definitions.
 
 See [`examples/muse_glimmer`](examples/muse_glimmer) for a complete public-model
-example using `meta-models/Muse-Glimmer-30B`.
+example using `meta-models/Muse-Glimmer-30B`. The
+[`examples/structured_output`](examples/structured_output) walkthrough includes
+three saved requests, full responses, and offline TUI fixtures.
 
 ## Development
 

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "summary": {
+    "argmax_masked_count": {
+      "max": 0
+    },
+    "mean_constraint_pressure_nats": {
+      "max": 0.02
+    },
+    "max_constraint_pressure_nats": {
+      "max": 0.25
+    }
+  }
+}

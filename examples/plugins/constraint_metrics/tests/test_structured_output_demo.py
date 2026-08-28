@@ -6,8 +6,13 @@ import pytest
 from viewer_fixture import forensic_response
 
 from examples.structured_output import run_demo
-from sglang_constraint_metrics.viewer.client import load_token_labels
-from sglang_constraint_metrics.viewer.data import SchemaError
+from sglang_constraint_metrics.viewer.client import (
+    build_request_body,
+    load_token_labels,
+)
+from sglang_constraint_metrics.viewer.data import SchemaError, parse_response_obj
+
+DEMO_DIR = Path(run_demo.__file__).parent
 
 
 def _args(tmp_path: Path, requests: Path) -> argparse.Namespace:
@@ -19,6 +24,43 @@ def _args(tmp_path: Path, requests: Path) -> argparse.Namespace:
         top_k=5,
         request_timeout=10,
     )
+
+
+def _within_bounds(actual, bounds):
+    return bounds.get("min", actual) <= actual <= bounds.get("max", actual)
+
+
+def _matches_token(metrics, token, expected):
+    return (
+        expected.get("output_index", token.output_index) == token.output_index
+        and expected.get("argmax_masked", token.argmax_masked) is token.argmax_masked
+        and _within_bounds(
+            token.constraint_pressure_nats,
+            expected.get("constraint_pressure_nats", {}),
+        )
+        and expected.get("emitted_label", metrics.token_label(token.token_id))
+        == metrics.token_label(token.token_id)
+        and expected.get(
+            "unconstrained_top1_label",
+            metrics.token_label(token.unconstrained_top1_token_id),
+        )
+        == metrics.token_label(token.unconstrained_top1_token_id)
+        and (
+            "top_masked_label" not in expected
+            or any(
+                metrics.token_label(candidate.token_id) == expected["top_masked_label"]
+                for candidate in token.top_masked
+            )
+        )
+    )
+
+
+def _assert_expectation(metrics, expectation):
+    assert expectation["version"] == 1
+    for name, bounds in expectation.get("summary", {}).items():
+        assert _within_bounds(getattr(metrics.summary, name), bounds)
+    for expected in expectation.get("any_token", []):
+        assert any(_matches_token(metrics, token, expected) for token in metrics.tokens)
 
 
 def test_capture_discovers_request_files_and_preserves_relative_paths(
@@ -40,12 +82,15 @@ def test_capture_discovers_request_files_and_preserves_relative_paths(
             )
         )
         expected_paths.add(relative)
+    (requests / "shard-0" / "ignored.expect.json").write_text(
+        json.dumps({"version": 1})
+    )
 
-    posted = []
+    posted = {}
 
     def post(_opener, _url, payload, _timeout):
         body = json.loads(payload)
-        posted.append(body)
+        posted[body["text"]] = payload
         response = forensic_response()
         response["text"] = body["text"]
         return 200, json.dumps(response, separators=(",", ":")).encode()
@@ -78,8 +123,12 @@ def test_capture_discovers_request_files_and_preserves_relative_paths(
     for relative in expected_paths:
         source = json.loads((requests / relative).read_text())
         submitted = json.loads((args.submitted_requests / relative).read_text())
-        response = json.loads((args.responses / relative).read_text())
+        response_path = args.responses / relative
+        response = json.loads(response_path.read_text())
         labels = load_token_labels(args.token_labels / relative)
+        assert (args.submitted_requests / relative).read_bytes() == posted[
+            source["text"]
+        ]
         assert submitted["text"] == source["text"]
         assert (
             submitted["sampling_params"]["temperature"]
@@ -91,6 +140,7 @@ def test_capture_discovers_request_files_and_preserves_relative_paths(
         }
         assert submitted["stream"] is False
         assert response["text"] == source["text"]
+        assert response_path.read_bytes().endswith(b"\n")
         assert labels[10] == "token-10"
 
 
@@ -106,7 +156,13 @@ def test_capture_continues_after_a_bad_request(monkeypatch, tmp_path):
         "_post_request",
         lambda *_args: (200, json.dumps(forensic_response()).encode()),
     )
-    monkeypatch.setattr(run_demo, "detokenize", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        run_demo,
+        "detokenize",
+        lambda _url, token_ids, timeout: {
+            token_id: f"token-{token_id}" for token_id in token_ids
+        },
+    )
     args = _args(tmp_path, requests)
 
     assert run_demo._capture(args, "http://server") == 1
@@ -121,3 +177,31 @@ def test_capture_rejects_overlapping_input_and_output_roots(tmp_path):
 
     with pytest.raises(SchemaError, match="roots must be separate"):
         run_demo._capture(args, "http://server")
+
+
+@pytest.mark.parametrize(
+    "request_path",
+    run_demo._request_paths(DEMO_DIR / "requests"),
+    ids=lambda path: str(path.relative_to(DEMO_DIR / "requests")),
+)
+def test_committed_demo_fixture_matches_expectation(request_path):
+    relative = request_path.relative_to(DEMO_DIR / "requests")
+    submitted_path = DEMO_DIR / "submitted_requests" / relative
+    response_path = DEMO_DIR / "responses" / relative
+    label_path = DEMO_DIR / "token_labels" / relative
+    expectation_path = run_demo._expectation_path(request_path)
+
+    assert submitted_path.read_bytes() == run_demo._json_bytes(
+        build_request_body(json.loads(request_path.read_text()), 8)
+    )
+    metrics = parse_response_obj(
+        json.loads(response_path.read_text()), source=str(response_path)
+    )
+    labels = load_token_labels(label_path)
+    assert metrics.status == "complete"
+    assert metrics.mode == "forensic"
+    assert not metrics.warnings
+    assert metrics.token_ids() <= labels.keys()
+    _assert_expectation(
+        metrics.with_token_labels(labels), json.loads(expectation_path.read_text())
+    )
