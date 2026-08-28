@@ -15,10 +15,12 @@ installed SGLang package. Installing it alone has no serving-path effect.
 | DFlash | The linear-speculation observer integration, pending upstream |
 
 Other speculative and diffusion sampling paths are rejected during startup.
-The initial implementation also requires NVIDIA CUDA and `llguidance`, and does
-not support PD disaggregation, pipeline parallelism, Ray, the Rust server,
-multiple tokenizer or detokenizer workers, reasoning parsers, or strict
-thinking.
+The plugin requires NVIDIA CUDA and explicitly supports only the `llguidance`
+and `xgrammar` grammar backends. XGrammar reuses its packed-mask path; the
+plugin does not add XGrammar batching optimizations.
+The plugin does not support PD disaggregation, pipeline parallelism, Ray, the
+Rust server, multiple tokenizer or detokenizer workers, reasoning parsers, or
+strict thinking.
 
 Install a compatible source build of SGLang first, then install this package in
 the same environment:
@@ -39,6 +41,8 @@ SGLANG_PLUGINS=constraint_metrics sglang serve MODEL \
   --grammar-backend llguidance \
   --max-running-requests 32
 ```
+
+Use `--grammar-backend xgrammar` to select XGrammar.
 
 `SGLANG_PLUGINS=constraint_metrics` is the feature-level switch. Without it,
 the installed package remains inactive. With it, startup verifies all required

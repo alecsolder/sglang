@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 
-from sglang.srt.constrained.base_grammar_backend import InvalidGrammarObject
+from sglang.srt.constrained.base_grammar_backend import (
+    BaseGrammarObject,
+    InvalidGrammarObject,
+)
 from sglang.srt.constrained.grammar_manager import GrammarManager
-from sglang.srt.constrained.llguidance_backend import GuidanceGrammar
 from sglang.srt.managers.schedule_batch import Req
 from sglang_constraint_metrics.config import config_from_sampling_custom_params
 from sglang_constraint_metrics.observer import (
@@ -22,8 +24,8 @@ def _bind_request_grammar(req: Req) -> None:
         return
     if isinstance(grammar, (Future, InvalidGrammarObject)):
         return
-    if not isinstance(grammar, GuidanceGrammar):
-        raise TypeError("constraint metrics require --grammar-backend llguidance")
+    if not isinstance(grammar, BaseGrammarObject):
+        raise TypeError("constraint metrics require an SGLang grammar object")
     if getattr(grammar, "constraint_metrics_config", None) is not None:
         raise RuntimeError("constraint metrics were already bound to this grammar")
     grammar.constraint_metrics_config = state.config

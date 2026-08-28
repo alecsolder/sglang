@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from sglang.srt.constrained.llguidance_backend import GuidanceGrammar
+from sglang.srt.constrained.base_grammar_backend import BaseGrammarObject
 from sglang.srt.sampling.sampling_observer import LinearSpeculationObservation
 from sglang_constraint_metrics import layout
 from sglang_constraint_metrics.capture import CaptureScratch
@@ -25,7 +25,7 @@ def test_linear_capture_finalize_matches_sglang_contract():
     assert tuple(actual) == tuple(expected)
 
 
-class _Grammar(GuidanceGrammar):
+class _Grammar(BaseGrammarObject):
     def __init__(
         self,
         mode: str,
@@ -33,7 +33,7 @@ class _Grammar(GuidanceGrammar):
         top_k: int = 8,
         stream_all_token_metrics: bool = False,
     ):
-        self._finished = False
+        super().__init__()
         self.constraint_metrics_config = ConstraintMetricsConfig(
             mode,
             top_k,

@@ -3,8 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from sglang.srt.constrained.base_grammar_backend import BaseGrammarObject
 from sglang.srt.constrained.grammar_manager import GrammarManager
-from sglang.srt.constrained.llguidance_backend import GuidanceGrammar
+from sglang.srt.constrained.xgrammar_backend import XGrammarGrammar
 from sglang_constraint_metrics.config import (
     CUSTOM_PARAMS_KEY,
     config_from_sampling_custom_params,
@@ -20,9 +21,9 @@ from sglang_constraint_metrics.observer import (
 )
 
 
-class _Grammar(GuidanceGrammar):
+class _Grammar(BaseGrammarObject):
     def __init__(self):
-        self._finished = False
+        super().__init__()
 
 
 class _Request:
@@ -59,6 +60,15 @@ def _manager():
     return object.__new__(GrammarManager)
 
 
+def _xgrammar():
+    return XGrammarGrammar(
+        matcher=SimpleNamespace(is_terminated=lambda: False),
+        vocab_size=32,
+        ctx=None,
+        override_stop_tokens=None,
+    )
+
+
 def test_cached_grammar_is_bound_once_when_request_enters_scheduler():
     grammar = _Grammar()
     req = _request(grammar)
@@ -93,6 +103,20 @@ def test_compiled_grammar_is_bound_when_future_becomes_ready():
     assert grammar.constraint_metrics_config.mode == "summary"
 
 
+def test_xgrammar_request_is_bound_when_it_enters_scheduler():
+    grammar = _xgrammar()
+    req = _request(grammar)
+
+    queued = process_constraint_metrics_req_with_grammar(
+        lambda _manager, _req: False,
+        _manager(),
+        req,
+    )
+
+    assert not queued
+    assert grammar.constraint_metrics_config.mode == "summary"
+
+
 def test_metrics_request_fails_loudly_with_wrong_backend_object():
     req = _request(SimpleNamespace())
     bind_constraint_metrics_state(
@@ -100,7 +124,7 @@ def test_metrics_request_fails_loudly_with_wrong_backend_object():
         config=config_from_sampling_custom_params(req.sampling_params.custom_params),
     )
 
-    with pytest.raises(TypeError, match="--grammar-backend llguidance"):
+    with pytest.raises(TypeError, match="SGLang grammar object"):
         _bind_request_grammar(req)
 
 

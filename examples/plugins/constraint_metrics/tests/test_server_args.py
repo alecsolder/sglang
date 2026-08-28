@@ -49,8 +49,17 @@ def _validate(args, *, cuda_available=True):
         validate_constraint_metrics_server_args(None, args)
 
 
-def test_constraint_metrics_accepts_supported_server_config():
-    _validate(_args())
+@pytest.mark.parametrize("grammar_backend", ["llguidance", "xgrammar"])
+@pytest.mark.parametrize("speculative_algorithm", [None, "DFLASH"])
+def test_constraint_metrics_accepts_supported_server_config(
+    grammar_backend, speculative_algorithm
+):
+    _validate(
+        _args(
+            grammar_backend=grammar_backend,
+            speculative_algorithm=speculative_algorithm,
+        )
+    )
 
 
 @pytest.mark.parametrize(
@@ -66,7 +75,8 @@ def test_constraint_metrics_accepts_supported_server_config():
         ({"device": "cpu"}, "requires NVIDIA CUDA"),
         ({"dllm_algorithm": "low_confidence"}, "diffusion LLM"),
         ({"speculative_algorithm": "EAGLE"}, "has no constraint-metrics adapter"),
-        ({"grammar_backend": "xgrammar"}, "requires --grammar-backend"),
+        ({"grammar_backend": "outlines"}, "requires --grammar-backend"),
+        ({"grammar_backend": "none"}, "requires --grammar-backend"),
         ({"reasoning_parser": "deepseek-r1"}, "does not support"),
         ({"enable_strict_thinking": True}, "does not support"),
     ],
@@ -90,10 +100,6 @@ def test_constraint_metrics_rejects_rust_server():
 def test_constraint_metrics_rejects_rocm_cuda_device_name():
     with pytest.raises(ValueError, match="requires NVIDIA CUDA"):
         _validate(_args(device="cuda"), cuda_available=False)
-
-
-def test_constraint_metrics_accepts_dflash_sampling_path():
-    _validate(_args(speculative_algorithm="DFLASH"))
 
 
 def test_constraint_metrics_rejects_dflash_without_observer_api(monkeypatch):

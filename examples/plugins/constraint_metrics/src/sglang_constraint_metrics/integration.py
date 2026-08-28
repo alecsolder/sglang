@@ -66,8 +66,10 @@ def validate_constraint_metrics_server_args(
 
     deployment_max_top_k()
     cfg = _resolved_server_args(server_args)
-    if cfg.grammar_backend != "llguidance":
-        raise ValueError("constraint_metrics requires --grammar-backend llguidance")
+    if cfg.grammar_backend not in {"llguidance", "xgrammar"}:
+        raise ValueError(
+            "constraint_metrics requires --grammar-backend llguidance or xgrammar"
+        )
     if cfg.skip_tokenizer_init:
         raise ValueError("constraint_metrics requires tokenizer initialization")
     if cfg.max_running_requests is None:
@@ -77,7 +79,7 @@ def validate_constraint_metrics_server_args(
         )
     if cfg.reasoning_parser or cfg.enable_strict_thinking:
         raise ValueError(
-            "llguidance does not support constraint_metrics with "
+            "constraint_metrics does not support "
             "--reasoning-parser or --enable-strict-thinking"
         )
     if cfg.disaggregation_mode != "null":
